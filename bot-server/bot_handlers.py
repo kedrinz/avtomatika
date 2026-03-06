@@ -74,7 +74,11 @@ def _make_qr_bytes(payload: str) -> io.BytesIO:
     qr.add_data(payload)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    img.save(buf, format="PNG")
+    # PyPNG backend не принимает format=; PIL принимает
+    try:
+        img.save(buf, format="PNG")
+    except (TypeError, AttributeError):
+        img.save(buf)
     buf.seek(0)
     return buf
 
@@ -477,7 +481,7 @@ def build_application() -> Application:
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_for_device_name),
     )
-    # Проверка офлайн-устройств каждые 3 минуты; первый запуск через 1 мин
+    # Проверка каждые 5 мин; уведомление только если устройство не отвечает дольше порога (30 мин)
     if app.job_queue:
-        app.job_queue.run_repeating(_job_check_offline_devices, interval=180, first=60)
+        app.job_queue.run_repeating(_job_check_offline_devices, interval=300, first=120)
     return app

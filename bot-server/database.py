@@ -5,8 +5,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Считаем устройство онлайн, если была активность за последние N минут
-ONLINE_THRESHOLD_MINUTES = 5
+# Считаем устройство онлайн, если была активность за последние N минут.
+# Уведомление «не выходит на связь» отправляется только если дольше этого порога нет ответа.
+ONLINE_THRESHOLD_MINUTES = 30
 
 
 def _db_path() -> str:

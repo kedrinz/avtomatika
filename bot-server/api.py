@@ -19,6 +19,25 @@ class NotifyPayload(BaseModel):
     sender: str | None = None  # имя/номер отправителя (для SMS)
 
 
+class PingPayload(BaseModel):
+    device_token: str
+
+
+@app.post("/api/ping")
+async def api_ping(
+    payload: PingPayload,
+    request: Request,
+    x_api_key: str | None = Header(None, alias="X-Api-Key"),
+):
+    """Обновляет last_seen устройства без отправки в канал. Вызывается приложением при сохранении настроек."""
+    _check_api_secret(request, x_api_key)
+    device = get_device_by_token(payload.device_token)
+    if not device:
+        raise HTTPException(status_code=403, detail="Unknown device token")
+    update_device_last_seen(payload.device_token)
+    return {"ok": True}
+
+
 def _check_api_secret(request: Request, x_api_key: str | None = None) -> None:
     secret = get_settings().api_secret
     if not secret:

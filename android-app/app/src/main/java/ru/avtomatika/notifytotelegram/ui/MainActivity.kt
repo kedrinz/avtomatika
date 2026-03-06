@@ -20,6 +20,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import ru.avtomatika.notifytotelegram.R
 import ru.avtomatika.notifytotelegram.data.Settings
+import ru.avtomatika.notifytotelegram.service.NotificationSender
 
 class MainActivity : AppCompatActivity() {
 
@@ -69,6 +70,7 @@ class MainActivity : AppCompatActivity() {
                 etServerUrl.setText(url)
                 etDeviceToken.setText(token)
                 Toast.makeText(this, getString(R.string.toast_qr_saved), Toast.LENGTH_SHORT).show()
+                pingServer(url, token)
             } else {
                 Toast.makeText(this, getString(R.string.toast_qr_invalid), Toast.LENGTH_SHORT).show()
             }
@@ -94,6 +96,15 @@ class MainActivity : AppCompatActivity() {
         qrLauncher.launch(
             ScanOptions().setPrompt(getString(R.string.step2_scan_qr)).setBeepEnabled(true)
         )
+    }
+
+    /** В фоне отправляет пинг на сервер, чтобы в боте устройство отобразилось как «подключено». */
+    private fun pingServer(serverUrl: String, deviceToken: String) {
+        Thread {
+            try {
+                NotificationSender(this).ping(serverUrl, deviceToken)
+            } catch (_: Exception) { /* тихо игнорируем */ }
+        }.start()
     }
 
     override fun onResume() {
@@ -198,6 +209,7 @@ class MainActivity : AppCompatActivity() {
         settings.setServerUrl(url)
         settings.setDeviceToken(token)
         Toast.makeText(this, getString(R.string.toast_saved), Toast.LENGTH_SHORT).show()
+        pingServer(url, token)
     }
 
     private fun addPackage() {

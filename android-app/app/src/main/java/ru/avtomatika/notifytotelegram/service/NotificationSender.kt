@@ -44,4 +44,21 @@ class NotificationSender(private val context: Context) {
             }
         }
     }
+
+    /** Сообщает серверу, что устройство подключено (обновляет статус в боте). Вызывать после сохранения настроек или скана QR. */
+    fun ping(serverUrl: String, deviceToken: String) {
+        val url = "$serverUrl/api/ping".replace(Regex("/+$"), "")
+        val body = JSONObject().apply {
+            put("device_token", deviceToken)
+        }.toString()
+        val request = Request.Builder()
+            .url(url)
+            .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("HTTP ${response.code}")
+            }
+        }
+    }
 }
