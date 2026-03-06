@@ -1,0 +1,5 @@
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class ru.avtomatika.notifytotelegram.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
