@@ -2,7 +2,6 @@ package ru.avtomatika.notifytotelegram.ui
 
 import android.content.ComponentName
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.ViewGroup
@@ -15,7 +14,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import ru.avtomatika.notifytotelegram.R
 import ru.avtomatika.notifytotelegram.data.Settings
-import ru.avtomatika.notifytotelegram.service.NotifyListenerService
 
 class MainActivity : AppCompatActivity() {
 
@@ -67,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         val pkg = packageName
         val flat = android.provider.Settings.Secure.getString(
             contentResolver,
-            android.provider.Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+            "enabled_notification_listeners"
         ) ?: return false
         for (part in flat.split(":")) {
             val cn = ComponentName.unflattenFromString(part) ?: continue

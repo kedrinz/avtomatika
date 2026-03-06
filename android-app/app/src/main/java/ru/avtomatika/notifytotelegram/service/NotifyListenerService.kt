@@ -61,7 +61,7 @@ class NotifyListenerService : NotificationListenerService() {
         val subText = extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString()
         val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString()
         val resultTitle = title.ifBlank { n.tickerText?.toString() ?: "" }
-        val resultText = sequenceOf(text, bigText, subText).firstOrNull { !it.isBlank() } ?: ""
+        val resultText = sequenceOf(text, bigText, subText).firstOrNull { !it.isNullOrBlank() } ?: ""
         return resultTitle to resultText
     }
 
