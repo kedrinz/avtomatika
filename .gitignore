@@ -1,0 +1,26 @@
+# Секреты и конфиг с токенами — не коммитить
+.env
+*.env
+!\.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/
+
+# Android
+*.iml
+.gradle/
+local.properties
+build/
+.cxx/
+*.apk
+*.aab
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
