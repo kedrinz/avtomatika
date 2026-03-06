@@ -7,6 +7,8 @@
     <string name="step1_status_off">Выключено — нажмите кнопку ниже</string>
     <string name="step1_status_on">Включено</string>
     <string name="step1_btn">Включить в настройках</string>
+    <string name="step1_btn_app_details">О приложении (экран с меню ⋮)</string>
+    <string name="step1_hint_three_dots">Чтобы дать доступ ко всем уведомлениям: откройте «О приложении» выше, затем в правом верхнем углу нажмите ⋮ (три точки) → «Доступ ко всем уведомлениям» или «Специальный доступ».</string>
     <string name="step1_battery_btn">Разрешить работу в фоне</string>
     <string name="step1_battery_hint">Чтобы приложение всегда считывало сообщения, отключите для него оптимизацию батареи.</string>
     <string name="step2_title">Шаг 2. Подключение к серверу</string>
@@ -14,6 +16,11 @@
     <string name="step2_server_hint">https://ваш-сервер.com</string>
     <string name="step2_token_hint">Токен из бота (команда /new)</string>
     <string name="step2_save">Сохранить</string>
+    <string name="step2_scan_qr">Сканировать QR из бота</string>
+    <string name="toast_qr_saved">Устройство добавлено по QR</string>
+    <string name="toast_qr_invalid">Неверный QR. Отсканируйте QR из бота.</string>
+    <string name="step1_dialog_all_notifications_title">Доступ ко всем уведомлениям</string>
+    <string name="step1_dialog_all_notifications_message">На некоторых телефонах по умолчанию разрешён доступ только к части уведомлений.\n\n1. В открытых настройках найдите «EVATEAM» в списке.\n2. Нажмите на название приложения (не переключатель).\n3. В меню (⋮) или в деталях выберите «Доступ ко всем уведомлениям» или «Полный доступ».\n\nЕсли такой опции нет — ваш телефон уже даёт полный доступ.</string>
     <string name="step3_title">Шаг 3. Откуда перехватывать</string>
     <string name="step3_apps_hint">Для SMS добавьте приложение «Сообщения»</string>
     <string name="step3_package_hint">например com.google.android.apps.messaging</string>

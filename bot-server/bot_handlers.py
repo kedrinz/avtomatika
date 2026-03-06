@@ -1,3 +1,4 @@
+import io
 import logging
 from datetime import datetime, timezone, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -10,11 +11,14 @@ from telegram.ext import (
     filters,
 )
 
+import qrcode
+
 from config import get_settings
 from database import (
     create_device,
     list_devices,
     get_device_by_token,
+    get_device_by_id,
     set_device_name,
     set_device_packages,
     delete_device,
@@ -39,6 +43,10 @@ CB_DEVICE_PKG = "dp_"  # dp_1
 CB_DEVICE_DEL = "dd_"  # dd_1
 CB_DEVICE_DEL_CONFIRM = "dc_"  # dc_1
 CB_BACK_DEVICES = "m_devices"
+CB_SETNAME_PROMPT = "snp_"  # snp_1 — запрос имени для устройства id=1
+
+# Формат QR для приложения: EVATEAM\n<url>\n<token>
+QR_PREFIX = "EVATEAM"
 
 
 def _e(s: str) -> str:
@@ -58,6 +66,17 @@ def _is_online(last_seen: datetime | None) -> bool:
     if not last_seen:
         return False
     return (datetime.now(timezone.utc) - last_seen).total_seconds() < ONLINE_THRESHOLD_MINUTES * 60
+
+
+def _make_qr_bytes(payload: str) -> io.BytesIO:
+    buf = io.BytesIO()
+    qr = qrcode.QRCode(version=1, box_size=4, border=2)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
 
 
 def _format_status(device: dict) -> tuple[str, str]:
@@ -203,17 +222,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data == CB_NEW:
         name = "Устройство"
         token = create_device(name)
-        api_url = get_settings().api_base_url or "https://ваш-сервер.com"
+        device = get_device_by_token(token)
+        if not device:
+            await query.answer("Ошибка создания устройства", show_alert=True)
+            return
+        api_url = (get_settings().api_base_url or "https://ваш-сервер.com").rstrip("/")
+        device_id = device["id"]
+        # QR для приложения: EVATEAM\n<url>\n<token>
+        qr_payload = f"{QR_PREFIX}\n{api_url}\n{token}"
+        qr_bytes = _make_qr_bytes(qr_payload)
+        await query.message.reply_photo(
+            photo=qr_bytes,
+            caption="📱 Отсканируйте QR в приложении EVATEAM (кнопка «Сканировать QR») для добавления устройства.",
+        )
         text = (
             "✅ <b>Устройство добавлено</b>\n\n"
-            f"<b>Токен</b> (введите в приложении на телефоне):\n<code>{_e(token)}</code>\n\n"
-            f"<b>URL сервера</b> в приложении:\n<code>{_e(api_url)}</code>\n\n"
-            "В приложении: добавьте приложение «Сообщения» для SMS и при необходимости настройте «От кого принимать»."
+            f"<b>Токен</b>: <code>{_e(token)}</code>\n\n"
+            f"<b>URL сервера</b>: <code>{_e(api_url)}</code>\n\n"
+            "Задайте имя устройству кнопкой ниже. В приложении добавьте «Сообщения» для SMS."
         )
-        await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📱 К списку устройств", callback_data=CB_DEVICES)],
-            [InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)],
-        ]))
+        await query.edit_message_text(
+            text=text,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✏️ Задать имя устройству", callback_data=f"{CB_SETNAME_PROMPT}{device_id}")],
+                [InlineKeyboardButton("📱 К списку устройств", callback_data=CB_DEVICES)],
+                [InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)],
+            ]),
+        )
+        return
+
+    if data.startswith(CB_SETNAME_PROMPT):
+        try:
+            did = int(data[len(CB_SETNAME_PROMPT):])
+        except ValueError:
+            return
+        dev = get_device_by_id(did)
+        if not dev:
+            await query.edit_message_text("Устройство не найдено.")
+            return
+        context.user_data["pending_device_name"] = did
+        await query.edit_message_text(
+            "✏️ Отправьте <b>одним сообщением</b> имя для этого устройства (например: <i>Телефон мамы</i>).",
+            parse_mode="HTML",
+        )
         return
 
     if data.startswith(CB_DEVICE_DEL_CONFIRM):
@@ -293,13 +345,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     name = " ".join(context.args).strip() if context.args else "Устройство"
     token = create_device(name)
-    api_url = get_settings().api_base_url or "https://ваш-сервер.com"
+    device = get_device_by_token(token)
+    if not device:
+        await update.message.reply_text("Ошибка создания устройства.")
+        return
+    api_url = (get_settings().api_base_url or "https://ваш-сервер.com").rstrip("/")
+    device_id = device["id"]
+    qr_payload = f"{QR_PREFIX}\n{api_url}\n{token}"
+    qr_bytes = _make_qr_bytes(qr_payload)
+    await update.message.reply_photo(
+        photo=qr_bytes,
+        caption="📱 Отсканируйте QR в приложении EVATEAM для добавления устройства.",
+    )
     await update.message.reply_text(
-        f"✅ Устройство добавлено.\n\n"
-        f"<b>Токен</b>:\n<code>{_e(token)}</code>\n\n"
-        f"<b>Сервер</b>: <code>{_e(api_url)}</code>",
+        f"✅ Устройство добавлено.\n\n<b>Токен</b>: <code>{_e(token)}</code>\n\n<b>Сервер</b>: <code>{_e(api_url)}</code>\n\nЗадайте имя кнопкой ниже.",
         parse_mode="HTML",
-        reply_markup=_main_menu_keyboard(),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✏️ Задать имя устройству", callback_data=f"{CB_SETNAME_PROMPT}{device_id}")],
+            *(_main_menu_keyboard().inline_keyboard),
+        ]),
     )
 
 
@@ -370,14 +434,29 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text("✅ Устройство удалено.")
 
 
+async def handle_text_for_device_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработка ввода имени устройства после нажатия «Задать имя»."""
+    did = context.user_data.pop("pending_device_name", None)
+    if did is None or not update.message or not update.message.text:
+        return
+    dev = get_device_by_id(did)
+    if not dev:
+        await update.message.reply_text("Устройство не найдено.")
+        return
+    name = (update.message.text or "").strip()[:100] or "Устройство"
+    set_device_name(dev["device_token"], name)
+    await update.message.reply_text(f"✅ Имя сохранено: {_e(name)}", parse_mode="HTML")
+
+
 async def _job_check_offline_devices(context: ContextTypes.DEFAULT_TYPE) -> None:
     from telegram_send import send_alert_to_channel_async
     for dev in get_devices_overdue_for_offline_alert():
         name = dev.get("name") or "Устройство"
         try:
             await send_alert_to_channel_async(
-                f"⚠️ Устройство «{name}» не выходило на связь более {ONLINE_THRESHOLD_MINUTES} мин.\n"
-                "Проверьте приложение и доступ в интернет на устройстве."
+                f"⚠️ Устройство «{name}» не выходит на связь более {ONLINE_THRESHOLD_MINUTES} мин.\n\n"
+                "Возможные причины: приложение закрыто или упало, нет интернета, выключен телефон. "
+                "Проверьте устройство и работу EVATEAM."
             )
             mark_device_offline_alert_sent(dev["device_token"])
         except Exception as e:
@@ -395,6 +474,9 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("setpackages", cmd_setpackages))
     app.add_handler(CommandHandler("delete", cmd_delete))
     app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_for_device_name),
+    )
     # Проверка офлайн-устройств каждые 3 минуты; первый запуск через 1 мин
     if app.job_queue:
         app.job_queue.run_repeating(_job_check_offline_devices, interval=180, first=60)

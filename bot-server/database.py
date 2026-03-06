@@ -109,6 +109,17 @@ def get_device_by_token(token: str) -> dict | None:
     return _row_to_device(row)
 
 
+def get_device_by_id(device_id: int) -> dict | None:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT id, device_token, name, packages, last_seen, last_offline_alert_at FROM devices WHERE id = ?",
+            (device_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return _row_to_device(row)
+
+
 def _row_to_device(r) -> dict:
     return {
         "id": r["id"],

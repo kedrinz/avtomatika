@@ -4,12 +4,8 @@
 Для продакшена предпочтительно запускать раздельно: uvicorn api:app + python run_bot.py
 """
 import asyncio
-import logging
-import threading
 
-import uvicorn
-
-# До импорта bot_handlers задаём event loop для MainThread (Python 3.12+ и uvloop)
+# Критично: задать event loop ДО импорта uvicorn (он тянет uvloop и ломает get_event_loop в Python 3.12+)
 def _make_loop():
     try:
         import uvloop
@@ -19,6 +15,10 @@ def _make_loop():
 
 _loop = _make_loop()
 asyncio.set_event_loop(_loop)
+
+import logging
+import threading
+import uvicorn
 
 from bot_handlers import build_application
 

@@ -2,17 +2,22 @@ package ru.avtomatika.notifytotelegram.ui
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import android.text.TextUtils
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import ru.avtomatika.notifytotelegram.R
 import ru.avtomatika.notifytotelegram.data.Settings
 
@@ -44,10 +49,51 @@ class MainActivity : AppCompatActivity() {
         refreshSenderList()
         updateListenerStatus()
         findViewById<MaterialButton>(R.id.btnEnableListener).setOnClickListener { openListenerSettings() }
+        findViewById<MaterialButton>(R.id.btnAppDetails).setOnClickListener { openAppDetailsSettings() }
         findViewById<MaterialButton>(R.id.btnBattery).setOnClickListener { openBatterySettings() }
         findViewById<MaterialButton>(R.id.btnSaveConfig).setOnClickListener { saveConfig() }
+        findViewById<MaterialButton>(R.id.btnScanQr).setOnClickListener { scanQr() }
         findViewById<MaterialButton>(R.id.btnAddPackage).setOnClickListener { addPackage() }
         findViewById<MaterialButton>(R.id.btnAddSender).setOnClickListener { addSender() }
+    }
+
+    private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents == null) return@registerForActivityResult
+        val parts = result.contents.split("\n")
+        if (parts.size >= 3 && parts[0].trim().equals("EVATEAM", ignoreCase = true)) {
+            val url = parts[1].trim()
+            val token = parts[2].trim()
+            if (url.isNotBlank() && token.isNotBlank()) {
+                settings.setServerUrl(url)
+                settings.setDeviceToken(token)
+                etServerUrl.setText(url)
+                etDeviceToken.setText(token)
+                Toast.makeText(this, getString(R.string.toast_qr_saved), Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, getString(R.string.toast_qr_invalid), Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, getString(R.string.toast_qr_invalid), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val requestCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchQrScanner() else Toast.makeText(this, "Нужен доступ к камере для сканирования", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun scanQr() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestCamera.launch(android.Manifest.permission.CAMERA)
+            return
+        }
+        launchQrScanner()
+    }
+
+    private fun launchQrScanner() {
+        qrLauncher.launch(
+            ScanOptions().setPrompt(getString(R.string.step2_scan_qr)).setBeepEnabled(true)
+        )
     }
 
     override fun onResume() {
@@ -80,8 +126,26 @@ class MainActivity : AppCompatActivity() {
     private fun openListenerSettings() {
         try {
             startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.step1_dialog_all_notifications_title))
+                .setMessage(getString(R.string.step1_dialog_all_notifications_message))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         } catch (_: Exception) {
             Toast.makeText(this, "Не удалось открыть настройки", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Открывает экран «О приложении» в настройках системы — там на многих телефонах есть меню ⋮ с пунктом «Доступ ко всем уведомлениям». */
+    private fun openAppDetailsSettings() {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+            Toast.makeText(this, "В правом верхнем углу нажмите ⋮ (три точки)", Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Не удалось открыть настройки приложения", Toast.LENGTH_SHORT).show()
         }
     }
 
