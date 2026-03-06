@@ -18,6 +18,32 @@ class Settings(context: Context) {
     fun setMonitoredPackages(packages: Set<String>) =
         prefs.edit().putStringSet(KEY_PACKAGES, packages).apply()
 
+    fun getAllowedSenders(): Set<String> =
+        prefs.getStringSet(KEY_ALLOWED_SENDERS, emptySet()) ?: emptySet()
+
+    fun setAllowedSenders(senders: Set<String>) =
+        prefs.edit().putStringSet(KEY_ALLOWED_SENDERS, senders).apply()
+
+    fun addAllowedSender(sender: String) {
+        val set = getAllowedSenders().toMutableSet()
+        if (sender.isNotBlank()) set.add(sender.trim())
+        setAllowedSenders(set)
+    }
+
+    fun removeAllowedSender(sender: String) {
+        val set = getAllowedSenders().toMutableSet()
+        set.remove(sender)
+        setAllowedSenders(set)
+    }
+
+    /** Проверяет, нужно ли пересылать уведомление от данного отправителя. title обычно = имя/номер отправителя. */
+    fun isSenderAllowed(senderTitle: String): Boolean {
+        val allowed = getAllowedSenders()
+        if (allowed.isEmpty()) return true
+        val normalized = senderTitle.trim().lowercase()
+        return allowed.any { it.trim().lowercase() in normalized || normalized.contains(it.trim().lowercase()) }
+    }
+
     fun addMonitoredPackage(pkg: String) {
         val set = getMonitoredPackages().toMutableSet()
         if (pkg.isNotBlank()) set.add(pkg.trim())
@@ -42,5 +68,6 @@ class Settings(context: Context) {
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_PACKAGES = "monitored_packages"
+        private const val KEY_ALLOWED_SENDERS = "allowed_senders"
     }
 }

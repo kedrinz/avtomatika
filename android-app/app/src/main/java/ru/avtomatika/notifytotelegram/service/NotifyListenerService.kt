@@ -36,11 +36,14 @@ class NotifyListenerService : NotificationListenerService() {
             try {
                 val (title, text) = extractNotification(sbn)
                 if (title.isBlank() && text.isBlank()) return@launch
+                val senderName = title
+                if (!settings.isSenderAllowed(senderName)) return@launch
                 sender.send(
                     serverUrl = settings.getServerUrl(),
                     deviceToken = settings.getDeviceToken(),
                     packageName = sbn.packageName,
                     appName = resolveAppName(sbn.packageName),
+                    sender = senderName,
                     title = title,
                     text = text
                 )

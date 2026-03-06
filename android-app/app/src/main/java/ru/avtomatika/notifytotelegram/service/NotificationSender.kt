@@ -21,6 +21,7 @@ class NotificationSender(private val context: Context) {
         deviceToken: String,
         packageName: String,
         appName: String,
+        sender: String,
         title: String,
         text: String
     ) {
@@ -29,6 +30,7 @@ class NotificationSender(private val context: Context) {
             put("device_token", deviceToken)
             put("package", packageName)
             put("app_name", appName)
+            put("sender", sender)
             put("title", title)
             put("text", text)
         }.toString()

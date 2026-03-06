@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from telegram import Bot
 from config import get_settings
 
@@ -15,7 +16,8 @@ def _bot() -> Bot:
 
 def _escape(s: str) -> str:
     return (
-        s.replace("&", "&amp;")
+        (s or "")
+        .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
@@ -26,16 +28,24 @@ async def send_to_channel_async(
     device_name: str,
     package: str,
     app_name: str,
+    sender: str,
     title: str,
     text: str,
 ) -> None:
     if not channel_id:
         return
+    # Красивое форматирование: отправитель крупно, текст сообщения, источник мелко
+    time_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    sender_display = _escape(sender) if sender else _escape(title)
+    if not sender_display:
+        sender_display = "(неизвестный отправитель)"
+    body = _escape(text) if text else "—"
     message = (
-        f"📱 <b>{app_name}</b> ({package})\n"
-        f"📲 Устройство: {device_name}\n\n"
-        f"<b>{_escape(title)}</b>\n\n"
-        f"{_escape(text)}"
+        f"📩 <b>От:</b> {sender_display}\n\n"
+        f"💬 <b>Сообщение:</b>\n{body}\n\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"📲 {_escape(device_name)}  ·  {_escape(app_name)}\n"
+        f"🕐 {time_str}"
     )
     await _bot().send_message(
         chat_id=channel_id,

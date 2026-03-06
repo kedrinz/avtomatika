@@ -24,7 +24,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etServerUrl: TextInputEditText
     private lateinit var etDeviceToken: TextInputEditText
     private lateinit var etPackage: TextInputEditText
+    private lateinit var etSender: TextInputEditText
     private lateinit var listPackages: LinearLayout
+    private lateinit var listSenders: LinearLayout
     private lateinit var statusListener: android.widget.TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,14 +36,18 @@ class MainActivity : AppCompatActivity() {
         etServerUrl = findViewById(R.id.etServerUrl)
         etDeviceToken = findViewById(R.id.etDeviceToken)
         etPackage = findViewById(R.id.etPackage)
+        etSender = findViewById(R.id.etSender)
         listPackages = findViewById(R.id.listPackages)
+        listSenders = findViewById(R.id.listSenders)
         statusListener = findViewById(R.id.statusListener)
         loadConfig()
         refreshPackageList()
+        refreshSenderList()
         updateListenerStatus()
         findViewById<MaterialButton>(R.id.btnEnableListener).setOnClickListener { openListenerSettings() }
         findViewById<MaterialButton>(R.id.btnSaveConfig).setOnClickListener { saveConfig() }
         findViewById<MaterialButton>(R.id.btnAddPackage).setOnClickListener { addPackage() }
+        findViewById<MaterialButton>(R.id.btnAddSender).setOnClickListener { addSender() }
     }
 
     override fun onResume() {
@@ -51,7 +57,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateListenerStatus() {
         val enabled = isNotificationServiceEnabled()
-        statusListener.text = if (enabled) "Включено" else "Выключено"
+        statusListener.text = if (enabled) getString(R.string.step1_status_on) else getString(R.string.step1_status_off)
         statusListener.setTextColor(
             if (enabled) getColor(android.R.color.holo_green_dark)
             else getColor(android.R.color.holo_red_dark)
@@ -89,27 +95,27 @@ class MainActivity : AppCompatActivity() {
         val token = etDeviceToken.text?.toString()?.trim() ?: ""
         when {
             url.isBlank() -> {
-                Toast.makeText(this, "Введите URL сервера", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_enter_url), Toast.LENGTH_SHORT).show()
                 return
             }
             !url.startsWith("http://") && !url.startsWith("https://") -> {
-                Toast.makeText(this, "URL должен начинаться с http:// или https://", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_bad_url), Toast.LENGTH_SHORT).show()
                 return
             }
             token.isBlank() -> {
-                Toast.makeText(this, "Введите токен устройства из бота", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_enter_token), Toast.LENGTH_SHORT).show()
                 return
             }
         }
         settings.setServerUrl(url)
         settings.setDeviceToken(token)
-        Toast.makeText(this, "Сохранено", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.toast_saved), Toast.LENGTH_SHORT).show()
     }
 
     private fun addPackage() {
         val pkg = etPackage.text?.toString()?.trim() ?: ""
         if (pkg.isBlank()) {
-            Toast.makeText(this, "Введите имя пакета (например com.whatsapp)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.toast_enter_package), Toast.LENGTH_SHORT).show()
             return
         }
         settings.addMonitoredPackage(pkg)
@@ -124,6 +130,7 @@ class MainActivity : AppCompatActivity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, resources.getDimensionPixelSize(R.dimen.list_item_margin), 0, resources.getDimensionPixelSize(R.dimen.list_item_margin))
             }
             val text = android.widget.TextView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -145,13 +152,61 @@ class MainActivity : AppCompatActivity() {
 
     private fun removePackage(pkg: String) {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Удалить?")
+            .setTitle(getString(R.string.dialog_remove))
             .setMessage(pkg)
-            .setPositiveButton("Удалить") { _, _ ->
+            .setPositiveButton(getString(R.string.btn_remove)) { _, _ ->
                 settings.removeMonitoredPackage(pkg)
                 refreshPackageList()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(getString(R.string.btn_cancel), null)
+            .show()
+    }
+
+    private fun addSender() {
+        val s = etSender.text?.toString()?.trim() ?: ""
+        if (s.isBlank()) {
+            Toast.makeText(this, getString(R.string.toast_enter_sender), Toast.LENGTH_SHORT).show()
+            return
+        }
+        settings.addAllowedSender(s)
+        etSender.text?.clear()
+        refreshSenderList()
+        Toast.makeText(this, "Добавлено: $s", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun refreshSenderList() {
+        listSenders.removeAllViews()
+        for (s in settings.getAllowedSenders().sorted()) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, resources.getDimensionPixelSize(R.dimen.list_item_margin), 0, resources.getDimensionPixelSize(R.dimen.list_item_margin))
+            }
+            val text = android.widget.TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 8, 0) }
+                setText(s)
+                setSingleLine()
+                ellipsize = TextUtils.TruncateAt.MIDDLE
+            }
+            val remove = MaterialButton(this).apply {
+                text = "✕"
+                setOnClickListener { removeSender(s) }
+            }
+            row.addView(text)
+            row.addView(remove)
+            listSenders.addView(row)
+        }
+    }
+
+    private fun removeSender(sender: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.dialog_remove_sender))
+            .setMessage(sender)
+            .setPositiveButton(getString(R.string.btn_remove)) { _, _ ->
+                settings.removeAllowedSender(sender)
+                refreshSenderList()
+            }
+            .setNegativeButton(getString(R.string.btn_cancel), null)
             .show()
     }
 }

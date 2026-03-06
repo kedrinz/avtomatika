@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="card_radius">12dp</dimen>
+    <dimen name="card_elevation">2dp</dimen>
+    <dimen name="card_margin">12dp</dimen>
+    <dimen name="screen_padding">20dp</dimen>
+    <dimen name="section_spacing">8dp</dimen>
+    <dimen name="title_size">18sp</dimen>
+    <dimen name="hint_size">13sp</dimen>
+    <dimen name="list_item_margin">4dp</dimen>
+</resources>

@@ -112,6 +112,21 @@ adb install app\build\outputs\apk\debug\app-debug.apk
 
 ---
 
+## Команды для сборки (кратко)
+
+**В папке проекта** `avtomatika` (корень репозитория):
+
+**Через GitHub:** закоммитить и отправить код, затем **Actions → Build APK → Run workflow** → скачать артефакт **app-debug**.
+
+**Локально (из папки android-app):**
+```bash
+cd android-app
+gradlew.bat assembleDebug
+```
+Готовый APK: `app\build\outputs\apk\debug\app-debug.apk`
+
+---
+
 ## Краткий чек-лист (Android Studio)
 
 | № | Действие |

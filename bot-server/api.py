@@ -16,6 +16,7 @@ class NotifyPayload(BaseModel):
     app_name: str
     title: str
     text: str
+    sender: str | None = None  # имя/номер отправителя (для SMS)
 
 
 def _check_api_secret(request: Request, x_api_key: str | None = None) -> None:
@@ -49,6 +50,7 @@ async def api_notify(
             device_name=device.get("name", "Устройство"),
             package=payload.package,
             app_name=payload.app_name,
+            sender=payload.sender or payload.title or "",
             title=payload.title or "(без заголовка)",
             text=payload.text or "",
         )

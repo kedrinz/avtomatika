@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Уведомления в Telegram</string>
+    <string name="app_name">EVATEAM</string>
+    <string name="step1_title">Шаг 1. Доступ к уведомлениям</string>
+    <string name="step1_hint">Нужен для перехвата SMS и уведомлений</string>
+    <string name="step1_status_off">Выключено — нажмите кнопку ниже</string>
+    <string name="step1_status_on">Включено</string>
+    <string name="step1_btn">Включить в настройках</string>
+    <string name="step2_title">Шаг 2. Подключение к серверу</string>
+    <string name="step2_hint">URL и токен вы получите в Telegram-боте</string>
+    <string name="step2_server_hint">https://ваш-сервер.com</string>
+    <string name="step2_token_hint">Токен из бота (команда /new)</string>
+    <string name="step2_save">Сохранить</string>
+    <string name="step3_title">Шаг 3. Откуда перехватывать</string>
+    <string name="step3_apps_hint">Для SMS добавьте приложение «Сообщения»</string>
+    <string name="step3_package_hint">например com.google.android.apps.messaging</string>
+    <string name="step3_add">Добавить</string>
+    <string name="step4_title">Шаг 4. От кого принимать (SMS)</string>
+    <string name="step4_hint">Номер или имя. Пусто — от всех</string>
+    <string name="step4_sender_hint">+79001234567 или Имя</string>
+    <string name="toast_saved">Сохранено</string>
+    <string name="toast_enter_url">Введите URL сервера</string>
+    <string name="toast_bad_url">URL должен начинаться с http:// или https://</string>
+    <string name="toast_enter_token">Введите токен из бота</string>
+    <string name="toast_enter_package">Введите пакет приложения</string>
+    <string name="toast_enter_sender">Введите номер или имя отправителя</string>
+    <string name="dialog_remove">Удалить?</string>
+    <string name="dialog_remove_sender">Удалить отправителя?</string>
+    <string name="btn_remove">Удалить</string>
+    <string name="btn_cancel">Отмена</string>
 </resources>
