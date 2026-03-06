@@ -31,4 +31,7 @@
     <string name="dialog_remove_sender">Удалить отправителя?</string>
     <string name="btn_remove">Удалить</string>
     <string name="btn_cancel">Отмена</string>
+    <string name="notification_channel_name">Пересылка уведомлений</string>
+    <string name="notification_foreground_title">EVATEAM</string>
+    <string name="notification_foreground_text">Пересылка уведомлений активна</string>
 </resources>

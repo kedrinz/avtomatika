@@ -2,7 +2,12 @@ import sqlite3
 import json
 import secrets
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
+
+# Считаем устройство онлайн, если была активность за последние N минут
+ONLINE_THRESHOLD_MINUTES = 5
+
 
 def _db_path() -> str:
     try:
@@ -35,7 +40,16 @@ def ensure_db():
         conn.commit()
     finally:
         conn.close()
-    # Инициализация канала из .env при первом запуске
+    # Миграция: колонки last_seen и last_offline_alert_at
+    for col in ("last_seen", "last_offline_alert_at"):
+        try:
+            conn = sqlite3.connect(path)
+            conn.execute(f"ALTER TABLE devices ADD COLUMN {col} TEXT")
+            conn.commit()
+            conn.close()
+        except sqlite3.OperationalError:
+            pass  # колонка уже есть
+    # Инициализация канала
     try:
         from config import get_settings
         cfg = get_settings()
@@ -87,34 +101,31 @@ def create_device(name: str = "") -> str:
 def get_device_by_token(token: str) -> dict | None:
     with _conn() as c:
         row = c.execute(
-            "SELECT id, device_token, name, packages FROM devices WHERE device_token = ?",
+            "SELECT id, device_token, name, packages, last_seen, last_offline_alert_at FROM devices WHERE device_token = ?",
             (token,),
         ).fetchone()
     if not row:
         return None
+    return _row_to_device(row)
+
+
+def _row_to_device(r) -> dict:
     return {
-        "id": row["id"],
-        "device_token": row["device_token"],
-        "name": row["name"] or "Устройство",
-        "packages": json.loads(row["packages"] or "[]"),
+        "id": r["id"],
+        "device_token": r["device_token"],
+        "name": r["name"] or "Устройство",
+        "packages": json.loads(r["packages"] or "[]"),
+        "last_seen": r["last_seen"] if r["last_seen"] else None,
+        "last_offline_alert_at": r["last_offline_alert_at"] if r["last_offline_alert_at"] else None,
     }
 
 
 def list_devices() -> list[dict]:
     with _conn() as c:
         rows = c.execute(
-            "SELECT id, device_token, name, packages, created_at FROM devices ORDER BY id"
+            "SELECT id, device_token, name, packages, created_at, last_seen, last_offline_alert_at FROM devices ORDER BY id"
         ).fetchall()
-    return [
-        {
-            "id": r["id"],
-            "device_token": r["device_token"],
-            "name": r["name"] or "Устройство",
-            "packages": json.loads(r["packages"] or "[]"),
-            "created_at": r["created_at"],
-        }
-        for r in rows
-    ]
+    return [_row_to_device(r) | {"created_at": r["created_at"]} for r in rows]
 
 
 def set_device_name(device_token: str, name: str) -> bool:
@@ -150,4 +161,47 @@ def set_channel_id(channel_id: str) -> None:
         c.execute(
             "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
             ("channel_id", channel_id.strip()),
+        )
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def update_device_last_seen(device_token: str) -> bool:
+    """Обновляет last_seen и сбрасывает last_offline_alert_at. Возвращает True если устройство было в «офлайн-алерте» (т.е. только что вышло в сеть)."""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT last_offline_alert_at FROM devices WHERE device_token = ?",
+            (device_token,),
+        ).fetchone()
+        if not row:
+            return False
+        had_alert = bool(row["last_offline_alert_at"])
+        c.execute(
+            "UPDATE devices SET last_seen = ?, last_offline_alert_at = NULL WHERE device_token = ?",
+            (_now_iso(), device_token),
+        )
+    return had_alert
+
+
+def get_devices_overdue_for_offline_alert(threshold_minutes: int = ONLINE_THRESHOLD_MINUTES) -> list[dict]:
+    """Устройства, которые не выходили на связь threshold_minutes минут и по которым ещё не отправляли алерт."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)).isoformat()
+    with _conn() as c:
+        rows = c.execute(
+            """SELECT id, device_token, name, packages, last_seen, last_offline_alert_at
+               FROM devices
+               WHERE (last_seen IS NULL OR last_seen < ?) AND (last_offline_alert_at IS NULL OR last_offline_alert_at = '')""",
+            (cutoff,),
+        ).fetchall()
+    return [_row_to_device(r) for r in rows]
+
+
+def mark_device_offline_alert_sent(device_token: str) -> None:
+    with _conn() as c:
+        c.execute(
+            "UPDATE devices SET last_offline_alert_at = ? WHERE device_token = ?",
+            (_now_iso(), device_token),
         )

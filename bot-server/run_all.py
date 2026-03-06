@@ -6,7 +6,19 @@
 import asyncio
 import logging
 import threading
+
 import uvicorn
+
+# До импорта bot_handlers задаём event loop для MainThread (Python 3.12+ и uvloop)
+def _make_loop():
+    try:
+        import uvloop
+        return uvloop.new_event_loop()
+    except ImportError:
+        return asyncio.new_event_loop()
+
+_loop = _make_loop()
+asyncio.set_event_loop(_loop)
 
 from bot_handlers import build_application
 
@@ -22,13 +34,19 @@ def run_api():
 
 
 def run_bot():
+    # На всякий случай: если в текущем потоке нет loop (например, старый деплой)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(_make_loop())
     app = build_application()
     app.run_polling(allowed_updates=["message", "callback_query"])
 
 
 if __name__ == "__main__":
-    # В Python 3.12+ в главном потоке нет event loop — создаём для run_polling()
-    asyncio.set_event_loop(asyncio.new_event_loop())
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
     logger.info("API started on http://0.0.0.0:8000")

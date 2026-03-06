@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -19,6 +20,9 @@ from database import (
     delete_device,
     get_channel_id,
     set_channel_id,
+    get_devices_overdue_for_offline_alert,
+    mark_device_offline_alert_sent,
+    ONLINE_THRESHOLD_MINUTES,
 )
 
 logger = logging.getLogger("bot")
@@ -41,6 +45,46 @@ def _e(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _parse_last_seen(iso_str: str | None) -> datetime | None:
+    if not iso_str or not iso_str.strip():
+        return None
+    try:
+        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _is_online(last_seen: datetime | None) -> bool:
+    if not last_seen:
+        return False
+    return (datetime.now(timezone.utc) - last_seen).total_seconds() < ONLINE_THRESHOLD_MINUTES * 60
+
+
+def _format_status(device: dict) -> tuple[str, str]:
+    """Возвращает (emoji_status, status_text) для устройства."""
+    ls = _parse_last_seen(device.get("last_seen"))
+    online = _is_online(ls)
+    if online:
+        if ls:
+            sec = (datetime.now(timezone.utc) - ls).total_seconds()
+            if sec < 60:
+                return "🟢", "только что"
+            if sec < 3600:
+                return "🟢", f"{int(sec // 60)} мин назад"
+            return "🟢", f"{int(sec // 3600)} ч назад"
+        return "🟢", "в сети"
+    if ls:
+        delta = datetime.now(timezone.utc) - ls
+        mins = int(delta.total_seconds() / 60)
+        if mins < 60:
+            return "🔴", f"офлайн {mins} мин"
+        hours = mins // 60
+        if hours < 24:
+            return "🔴", f"офлайн {hours} ч"
+        return "🔴", f"офлайн {hours // 24} д"
+    return "🔴", "никогда не подключалось"
+
+
 def _main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
@@ -60,8 +104,9 @@ def _devices_list_keyboard() -> InlineKeyboardMarkup:
     devices = list_devices()
     buttons = []
     for d in devices:
-        name = (d.get("name") or "Устройство")[:25]
-        buttons.append([InlineKeyboardButton(f"📲 {_e(name)}", callback_data=f"{CB_DEVICE}{d['id']}")])
+        name = (d.get("name") or "Устройство")[:20]
+        emoji, _ = _format_status(d)
+        buttons.append([InlineKeyboardButton(f"{emoji} {_e(name)}", callback_data=f"{CB_DEVICE}{d['id']}")])
     buttons.append([InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)])
     return InlineKeyboardMarkup(buttons)
 
@@ -131,7 +176,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             text = "📱 <b>Устройства</b>\n\nНет устройств.\nНажмите «➕ Новое устройство» в главном меню."
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)]])
         else:
-            text = "📱 <b>Устройства</b>\n\nВыберите устройство:"
+            online_count = sum(1 for d in devices if _is_online(_parse_last_seen(d.get("last_seen"))))
+            text = (
+                f"📱 <b>Устройства</b>\n\n"
+                f"Всего: {len(devices)}  ·  В сети: {online_count} 🟢  ·  Не в сети: {len(devices) - online_count} 🔴\n\n"
+                "Выберите устройство:"
+            )
             kb = _devices_list_keyboard()
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=kb)
         return
@@ -227,10 +277,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if not dev:
             await query.edit_message_text("Устройство не найдено.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)]]))
             return
+        emoji, status_txt = _format_status(dev)
         packages = dev.get("packages") or []
         pkg_str = ", ".join(packages[:4]) + ("…" if len(packages) > 4 else "") if packages else "все"
         text = (
             f"📲 <b>{_e(dev.get('name') or 'Устройство')}</b>\n\n"
+            f"{emoji} <b>Статус:</b> {status_txt}\n"
             f"Токен: <code>{_e(dev['device_token'][:24])}…</code>\n"
             f"Приложения: {_e(pkg_str)}"
         )
@@ -256,7 +308,12 @@ async def cmd_devices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not devices:
         await update.message.reply_text("Нет устройств. Используйте кнопку «➕ Новое устройство» или /new.", reply_markup=_main_menu_keyboard())
         return
-    text = "📱 <b>Устройства</b>\n\nВыберите устройство:"
+    online_count = sum(1 for d in devices if _is_online(_parse_last_seen(d.get("last_seen"))))
+    text = (
+        f"📱 <b>Устройства</b>\n\n"
+        f"Всего: {len(devices)}  ·  В сети: {online_count} 🟢  ·  Не в сети: {len(devices) - online_count} 🔴\n\n"
+        "Выберите устройство:"
+    )
     await update.message.reply_text(text=text, parse_mode="HTML", reply_markup=_devices_list_keyboard())
 
 
@@ -313,6 +370,20 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text("✅ Устройство удалено.")
 
 
+async def _job_check_offline_devices(context: ContextTypes.DEFAULT_TYPE) -> None:
+    from telegram_send import send_alert_to_channel_async
+    for dev in get_devices_overdue_for_offline_alert():
+        name = dev.get("name") or "Устройство"
+        try:
+            await send_alert_to_channel_async(
+                f"⚠️ Устройство «{name}» не выходило на связь более {ONLINE_THRESHOLD_MINUTES} мин.\n"
+                "Проверьте приложение и доступ в интернет на устройстве."
+            )
+            mark_device_offline_alert_sent(dev["device_token"])
+        except Exception as e:
+            logger.exception("Offline alert send failed for %s: %s", name, e)
+
+
 def build_application() -> Application:
     settings = get_settings()
     app = Application.builder().token(settings.telegram_bot_token).build()
@@ -324,4 +395,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("setpackages", cmd_setpackages))
     app.add_handler(CommandHandler("delete", cmd_delete))
     app.add_handler(CallbackQueryHandler(handle_callback))
+    # Проверка офлайн-устройств каждые 3 минуты; первый запуск через 1 мин
+    if app.job_queue:
+        app.job_queue.run_repeating(_job_check_offline_devices, interval=180, first=60)
     return app

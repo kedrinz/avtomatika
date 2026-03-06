@@ -3,8 +3,8 @@ from pydantic import BaseModel
 import logging
 
 from config import get_settings
-from database import get_device_by_token, get_channel_id
-from telegram_send import send_to_channel_async
+from database import get_device_by_token, get_channel_id, update_device_last_seen
+from telegram_send import send_to_channel_async, send_alert_to_channel_async
 
 logger = logging.getLogger("api")
 app = FastAPI(title="Notify to Telegram API", version="1.0")
@@ -37,6 +37,8 @@ async def api_notify(
     device = get_device_by_token(payload.device_token)
     if not device:
         raise HTTPException(status_code=403, detail="Unknown device token")
+    # Обновляем last_seen и проверяем, было ли устройство «офлайн» (тогда отправим «снова в сети»)
+    came_back_online = update_device_last_seen(payload.device_token)
     packages = device.get("packages") or []
     if packages and payload.package not in packages:
         raise HTTPException(status_code=400, detail="Package not allowed for this device")
@@ -54,6 +56,13 @@ async def api_notify(
             title=payload.title or "(без заголовка)",
             text=payload.text or "",
         )
+        if came_back_online:
+            try:
+                await send_alert_to_channel_async(
+                    f"✅ Устройство «{device.get('name', 'Устройство')}» снова в сети."
+                )
+            except Exception as e:
+                logger.exception("Failed to send 'back online' alert: %s", e)
         return {"ok": True, "sent": True}
     except Exception as e:
         logger.exception("Send to Telegram failed: %s", e)

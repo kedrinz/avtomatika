@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from telegram import Bot
 from config import get_settings
+from database import get_channel_id
 
 logger = logging.getLogger("telegram")
 _cached_bot: Bot | None = None
@@ -50,6 +51,20 @@ async def send_to_channel_async(
     await _bot().send_message(
         chat_id=channel_id,
         text=message,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+
+
+async def send_alert_to_channel_async(text: str) -> None:
+    """Отправляет системное уведомление в канал (статус устройств и т.д.)."""
+    channel_id = get_channel_id()
+    if not channel_id or not text.strip():
+        return
+    escaped = _escape(text)
+    await _bot().send_message(
+        chat_id=channel_id,
+        text=escaped,
         parse_mode="HTML",
         disable_web_page_preview=True,
     )

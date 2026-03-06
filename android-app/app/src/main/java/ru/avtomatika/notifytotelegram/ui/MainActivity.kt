@@ -91,9 +91,11 @@ class MainActivity : AppCompatActivity() {
                 data = Uri.parse("package:$packageName")
             }
             startActivity(intent)
+            Toast.makeText(this, "Откройте настройки. Выберите EVATEAM и разрешите работу в фоне (отключите оптимизацию батареи).", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
             try {
                 startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                Toast.makeText(this, "Откройте настройки батареи и отключите оптимизацию для EVATEAM.", Toast.LENGTH_LONG).show()
             } catch (_: Exception) {
                 Toast.makeText(this, "Откройте настройки батареи и отключите оптимизацию для EVATEAM", Toast.LENGTH_LONG).show()
             }

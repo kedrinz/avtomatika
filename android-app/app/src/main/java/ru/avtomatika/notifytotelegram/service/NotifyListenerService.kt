@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -76,31 +77,34 @@ class NotifyListenerService : NotificationListenerService() {
     }
 
     private fun startForegroundIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channelId = "notify_forward_channel"
         val nm = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    channelId,
-                    "Пересылка уведомлений",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-            )
-        }
+        nm.createNotificationChannel(
+            NotificationChannel(
+                channelId,
+                getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply { setShowBadge(true) }
+        )
         val intent = Intent(this, MainActivity::class.java)
         val pi = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Уведомления в Telegram")
-            .setContentText("Сервис активен")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(getString(R.string.notification_foreground_title))
+            .setContentText(getString(R.string.notification_foreground_text))
+            .setSmallIcon(R.drawable.ic_launcher)
             .setContentIntent(pi)
             .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
-        startForeground(FOREGROUND_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(FOREGROUND_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(FOREGROUND_ID, notification)
+        }
     }
 
     override fun onDestroy() {
