@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.text.TextUtils
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -79,7 +78,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun openListenerSettings() {
         try {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         } catch (_: Exception) {
             Toast.makeText(this, "Не удалось открыть настройки", Toast.LENGTH_SHORT).show()
         }
@@ -132,7 +131,7 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(0, resources.getDimensionPixelSize(R.dimen.list_item_margin), 0, resources.getDimensionPixelSize(R.dimen.list_item_margin))
             }
-            val text = android.widget.TextView(this).apply {
+            val label = android.widget.TextView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     setMargins(0, 0, 8, 0)
                 }
@@ -140,12 +139,12 @@ class MainActivity : AppCompatActivity() {
                 setSingleLine()
                 ellipsize = TextUtils.TruncateAt.MIDDLE
             }
-            val remove = MaterialButton(this).apply {
-                text = "✕"
+            val removeBtn = MaterialButton(this).apply {
+                setText("✕")
                 setOnClickListener { removePackage(pkg) }
             }
-            row.addView(text)
-            row.addView(remove)
+            row.addView(label)
+            row.addView(removeBtn)
             listPackages.addView(row)
         }
     }
@@ -182,18 +181,18 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setPadding(0, resources.getDimensionPixelSize(R.dimen.list_item_margin), 0, resources.getDimensionPixelSize(R.dimen.list_item_margin))
             }
-            val text = android.widget.TextView(this).apply {
+            val label = android.widget.TextView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 8, 0) }
                 setText(s)
                 setSingleLine()
                 ellipsize = TextUtils.TruncateAt.MIDDLE
             }
-            val remove = MaterialButton(this).apply {
-                text = "✕"
+            val removeBtn = MaterialButton(this).apply {
+                setText("✕")
                 setOnClickListener { removeSender(s) }
             }
-            row.addView(text)
-            row.addView(remove)
+            row.addView(label)
+            row.addView(removeBtn)
             listSenders.addView(row)
         }
     }
