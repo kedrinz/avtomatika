@@ -2,6 +2,7 @@ package ru.avtomatika.notifytotelegram.ui
 
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.ViewGroup
@@ -38,10 +39,12 @@ class MainActivity : AppCompatActivity() {
         listSenders = findViewById(R.id.listSenders)
         statusListener = findViewById(R.id.statusListener)
         loadConfig()
+        ensureDefaultPackage()
         refreshPackageList()
         refreshSenderList()
         updateListenerStatus()
         findViewById<MaterialButton>(R.id.btnEnableListener).setOnClickListener { openListenerSettings() }
+        findViewById<MaterialButton>(R.id.btnBattery).setOnClickListener { openBatterySettings() }
         findViewById<MaterialButton>(R.id.btnSaveConfig).setOnClickListener { saveConfig() }
         findViewById<MaterialButton>(R.id.btnAddPackage).setOnClickListener { addPackage() }
         findViewById<MaterialButton>(R.id.btnAddSender).setOnClickListener { addSender() }
@@ -79,6 +82,28 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         } catch (_: Exception) {
             Toast.makeText(this, "Не удалось открыть настройки", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openBatterySettings() {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: Exception) {
+                Toast.makeText(this, "Откройте настройки батареи и отключите оптимизацию для EVATEAM", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** По умолчанию добавляем приложение «Сообщения» для SMS, если список пуст. */
+    private fun ensureDefaultPackage() {
+        if (settings.getMonitoredPackages().isEmpty()) {
+            settings.addMonitoredPackage("com.google.android.apps.messaging")
         }
     }
 

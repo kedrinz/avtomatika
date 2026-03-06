@@ -11,4 +11,4 @@ logger = logging.getLogger("bot")
 if __name__ == "__main__":
     app = build_application()
     logger.info("Bot polling started")
-    app.run_polling(allowed_updates=["message"])
+    app.run_polling(allowed_updates=["message", "callback_query"])

@@ -3,9 +3,12 @@
     <string name="app_name">EVATEAM</string>
     <string name="step1_title">Шаг 1. Доступ к уведомлениям</string>
     <string name="step1_hint">Нужен для перехвата SMS и уведомлений</string>
+    <string name="step1_hint_all">На некоторых телефонах после включения нажмите на «EVATEAM» в списке и в меню (⋮) выберите «Доступ ко всем уведомлениям».</string>
     <string name="step1_status_off">Выключено — нажмите кнопку ниже</string>
     <string name="step1_status_on">Включено</string>
     <string name="step1_btn">Включить в настройках</string>
+    <string name="step1_battery_btn">Разрешить работу в фоне</string>
+    <string name="step1_battery_hint">Чтобы приложение всегда считывало сообщения, отключите для него оптимизацию батареи.</string>
     <string name="step2_title">Шаг 2. Подключение к серверу</string>
     <string name="step2_hint">URL и токен вы получите в Telegram-боте</string>
     <string name="step2_server_hint">https://ваш-сервер.com</string>

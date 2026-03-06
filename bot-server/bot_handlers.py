@@ -177,7 +177,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.edit_message_text("Устройство не найдено.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)]]))
             return
         delete_device(dev["device_token"])
-        await query.edit_message_text(f"🗑 Устройство «{_e(dev.get('name') or 'Устройство')}» удалено.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ К устройствам", callback_data=CB_DEVICES)]]))
+        await query.edit_message_text(
+            f"🗑 Устройство «{_e(dev.get('name') or 'Устройство')}» удалено.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ К устройствам", callback_data=CB_DEVICES)]]),
+        )
         return
 
     if data.startswith(CB_DEVICE_DEL):
@@ -191,7 +195,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.edit_message_text("Устройство не найдено.")
             return
         text = f"Удалить устройство «{_e(dev.get('name') or 'Устройство')}»?"
-        await query.edit_message_text(text=text, reply_markup=_device_delete_confirm_keyboard(did))
+        await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_device_delete_confirm_keyboard(did))
         return
 
     if data.startswith(CB_DEVICE_NAME) or data.startswith(CB_DEVICE_PKG):
@@ -208,7 +212,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if data.startswith(CB_DEVICE_NAME):
             cmd_hint = f"/setname {token_short} Новое имя"
         else:
-            cmd_hint = f"/setpackages {token_short} com.android.mms"
+            cmd_hint = f"/setpackages {token_short} com.google.android.apps.messaging"
         text = f"Используйте команду в чате:\n<code>{_e(cmd_hint)}</code>\n\nПолный токен: <code>{_e(dev['device_token'])}</code>"
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_device_detail_keyboard(did))
         return
