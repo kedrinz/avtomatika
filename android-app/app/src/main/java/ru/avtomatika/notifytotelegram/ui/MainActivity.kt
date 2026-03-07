@@ -99,17 +99,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** В фоне отправляет пинг на сервер, чтобы в боте устройство отобразилось как «подключено». */
-    private fun pingServer(serverUrl: String, deviceToken: String) {
+    private fun pingServer(serverUrl: String, deviceToken: String, showToast: Boolean = true) {
         Thread {
             try {
                 NotificationSender(this).ping(serverUrl, deviceToken)
-            } catch (_: Exception) { /* тихо игнорируем */ }
+                if (showToast) {
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.toast_ping_ok), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                if (showToast) {
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.toast_ping_fail), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }.start()
     }
 
     override fun onResume() {
         super.onResume()
         updateListenerStatus()
+        // Если настройки сохранены — пинг, чтобы устройство отображалось онлайн в боте
+        val url = settings.getServerUrl()
+        val token = settings.getDeviceToken()
+        if (url.isNotBlank() && token.isNotBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+            pingServer(url, token, showToast = false)
+        }
     }
 
     private fun updateListenerStatus() {

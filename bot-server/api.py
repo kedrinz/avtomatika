@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import logging
 
 from config import get_settings
-from database import get_device_by_token, get_channel_id, update_device_last_seen
+from database import get_device_by_token, get_channel_id, update_device_last_seen, save_notification
 from telegram_send import send_to_channel_async, send_alert_to_channel_async
 
 logger = logging.getLogger("api")
@@ -68,6 +68,15 @@ async def api_notify(
     try:
         await send_to_channel_async(
             channel_id=channel,
+            device_name=device.get("name", "Устройство"),
+            package=payload.package,
+            app_name=payload.app_name,
+            sender=payload.sender or payload.title or "",
+            title=payload.title or "(без заголовка)",
+            text=payload.text or "",
+        )
+        save_notification(
+            device_token=payload.device_token,
             device_name=device.get("name", "Устройство"),
             package=payload.package,
             app_name=payload.app_name,

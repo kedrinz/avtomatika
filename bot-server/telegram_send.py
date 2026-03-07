@@ -68,3 +68,16 @@ async def send_alert_to_channel_async(text: str) -> None:
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+
+
+async def send_alert_to_chat_async(chat_id: str, text: str) -> None:
+    """Отправляет сообщение в указанный чат (например, в бота админу)."""
+    if not chat_id or not text.strip():
+        return
+    escaped = _escape(text)
+    await _bot().send_message(
+        chat_id=chat_id,
+        text=escaped,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )

@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Считаем устройство онлайн, если была активность за последние N минут.
-# Уведомление «не выходит на связь» отправляется только если дольше этого порога нет ответа.
-ONLINE_THRESHOLD_MINUTES = 30
+# При пинге каждые 5 мин порог 10 мин даёт запас и устройства стабильно показываются в сети.
+ONLINE_THRESHOLD_MINUTES = 10
 
 
 def _db_path() -> str:
@@ -38,6 +38,21 @@ def ensure_db():
                 value TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_token TEXT NOT NULL,
+                device_name TEXT,
+                package TEXT,
+                app_name TEXT,
+                sender TEXT,
+                title TEXT,
+                text TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_text ON notifications(text)")
         conn.commit()
     finally:
         conn.close()
@@ -176,6 +191,21 @@ def set_channel_id(channel_id: str) -> None:
         )
 
 
+def get_alert_chat_id() -> str:
+    """Чат, куда слать алерты об офлайне устройств (только в бота, не в канал)."""
+    with _conn() as c:
+        row = c.execute("SELECT value FROM config WHERE key = ?", ("alert_chat_id",)).fetchone()
+    return (row["value"] or "").strip() if row else ""
+
+
+def set_alert_chat_id(chat_id: str) -> None:
+    with _conn() as c:
+        c.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            ("alert_chat_id", str(chat_id).strip()),
+        )
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -217,3 +247,45 @@ def mark_device_offline_alert_sent(device_token: str) -> None:
             "UPDATE devices SET last_offline_alert_at = ? WHERE device_token = ?",
             (_now_iso(), device_token),
         )
+
+
+def save_notification(
+    device_token: str,
+    device_name: str,
+    package: str,
+    app_name: str,
+    sender: str,
+    title: str,
+    text: str,
+) -> None:
+    with _conn() as c:
+        c.execute(
+            """INSERT INTO notifications (device_token, device_name, package, app_name, sender, title, text)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (device_token, device_name or "", package or "", app_name or "", sender or "", title or "", text or ""),
+        )
+
+
+def search_notifications(keyword: str, limit: int = 50) -> list[dict]:
+    """Поиск по ключевым словам в отправителе, заголовке и тексте."""
+    if not keyword or not keyword.strip():
+        return []
+    q = "%" + keyword.strip() + "%"
+    with _conn() as c:
+        rows = c.execute(
+            """SELECT id, device_name, sender, title, text, created_at
+               FROM notifications WHERE sender LIKE ? OR title LIKE ? OR text LIKE ?
+               ORDER BY id DESC LIMIT ?""",
+            (q, q, q, limit),
+        ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "device_name": r["device_name"] or "",
+            "sender": r["sender"] or "",
+            "title": r["title"] or "",
+            "text": r["text"] or "",
+            "created_at": r["created_at"] or "",
+        }
+        for r in rows
+    ]

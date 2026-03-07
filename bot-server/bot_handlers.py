@@ -24,8 +24,11 @@ from database import (
     delete_device,
     get_channel_id,
     set_channel_id,
+    get_alert_chat_id,
+    set_alert_chat_id,
     get_devices_overdue_for_offline_alert,
     mark_device_offline_alert_sent,
+    search_notifications,
     ONLINE_THRESHOLD_MINUTES,
 )
 
@@ -44,6 +47,10 @@ CB_DEVICE_DEL = "dd_"  # dd_1
 CB_DEVICE_DEL_CONFIRM = "dc_"  # dc_1
 CB_BACK_DEVICES = "m_devices"
 CB_SETNAME_PROMPT = "snp_"  # snp_1 — запрос имени для устройства id=1
+CB_ALERT_HERE = "m_alert_here"
+CB_DEVICE_CHECK = "dch_"  # dch_1 — проверить устройство (обновить статус)
+CB_HISTORY = "m_history"
+CB_SEARCH = "m_search"
 
 # Формат QR для приложения: EVATEAM\n<url>\n<token>
 QR_PREFIX = "EVATEAM"
@@ -118,6 +125,9 @@ def _main_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📢 Канал", callback_data=CB_CHANNEL),
         ],
         [
+            InlineKeyboardButton("📜 История и поиск", callback_data=CB_HISTORY),
+        ],
+        [
             InlineKeyboardButton("➕ Новое устройство", callback_data=CB_NEW),
         ],
     ])
@@ -140,6 +150,7 @@ def _device_detail_keyboard(device_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("✏️ Имя", callback_data=f"{CB_DEVICE_NAME}{device_id}"),
             InlineKeyboardButton("📦 Приложения", callback_data=f"{CB_DEVICE_PKG}{device_id}"),
         ],
+        [InlineKeyboardButton("🔄 Проверить устройство", callback_data=f"{CB_DEVICE_CHECK}{device_id}")],
         [InlineKeyboardButton("🗑 Удалить", callback_data=f"{CB_DEVICE_DEL}{device_id}")],
         [InlineKeyboardButton("◀️ К списку устройств", callback_data=CB_BACK_DEVICES)],
     ])
@@ -163,6 +174,7 @@ def _channel_keyboard() -> InlineKeyboardMarkup:
 def _settings_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Канал для уведомлений", callback_data=CB_CHANNEL)],
+        [InlineKeyboardButton("📬 Алерты об офлайне устройств — сюда в бота", callback_data=CB_ALERT_HERE)],
         [InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)],
     ])
 
@@ -219,8 +231,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     if data == CB_SETTINGS:
-        text = "⚙️ <b>Настройки</b>\n\nВыберите параметр:"
+        alert_chat = get_alert_chat_id()
+        alert_status = "✅ Настроено: алерты об офлайне приходят сюда в бота." if alert_chat else "Алерты об упавших устройствах не идут в канал — только в бота. Нажмите кнопку ниже."
+        text = f"⚙️ <b>Настройки</b>\n\n{alert_status}\n\nВыберите параметр:"
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_settings_keyboard())
+        return
+
+    if data == CB_ALERT_HERE:
+        chat_id = query.message.chat.id if query.message else None
+        if chat_id is not None:
+            set_alert_chat_id(str(chat_id))
+            await query.edit_message_text(
+                "✅ Готово. Уведомления об упавших устройствах будут приходить сюда в бота (в канал не отправляются).",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)]]),
+            )
+        else:
+            await query.answer("Ошибка", show_alert=True)
         return
 
     if data == CB_NEW:
@@ -323,6 +350,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_device_detail_keyboard(did))
         return
 
+    if data.startswith(CB_DEVICE_CHECK):
+        try:
+            did = int(data[len(CB_DEVICE_CHECK):])
+        except ValueError:
+            return
+        dev = get_device_by_id(did)
+        if not dev:
+            await query.edit_message_text("Устройство не найдено.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)]]))
+            return
+        emoji, status_txt = _format_status(dev)
+        packages = dev.get("packages") or []
+        pkg_str = ", ".join(packages[:4]) + ("…" if len(packages) > 4 else "") if packages else "все"
+        text = (
+            f"📲 <b>{_e(dev.get('name') or 'Устройство')}</b>\n\n"
+            f"{emoji} <b>Статус:</b> {status_txt}\n"
+            f"Токен: <code>{_e(dev['device_token'][:24])}…</code>\n"
+            f"Приложения: {_e(pkg_str)}"
+        )
+        await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_device_detail_keyboard(did))
+        return
+
     if data.startswith(CB_DEVICE):
         try:
             did = int(data[len(CB_DEVICE):])
@@ -343,6 +391,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"Приложения: {_e(pkg_str)}"
         )
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=_device_detail_keyboard(did))
+        return
+
+    if data == CB_HISTORY:
+        text = (
+            "📜 <b>История сообщений</b>\n\n"
+            "Поиск по ключевым словам: отправитель, заголовок или текст уведомления.\n"
+            "Например: <i>200</i>, <i>код</i>, <i>сумма</i> — найдутся все сообщения, где встречается это слово."
+        )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Поиск", callback_data=CB_SEARCH)],
+            [InlineKeyboardButton("◀️ В меню", callback_data=CB_MAIN)],
+        ])
+        await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=kb)
+        return
+
+    if data == CB_SEARCH:
+        context.user_data["pending_search"] = True
+        await query.edit_message_text(
+            "🔍 Отправьте <b>слово или число</b> для поиска (например: <code>200</code> или <code>код</code>).",
+            parse_mode="HTML",
+        )
         return
 
 
@@ -439,9 +508,41 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def handle_text_for_device_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка ввода имени устройства после нажатия «Задать имя»."""
+    """Обработка ввода имени устройства после «Задать имя» и поиска по истории."""
+    if not update.message or not update.message.text:
+        return
+
+    # Поиск по истории
+    if context.user_data.get("pending_search"):
+        context.user_data.pop("pending_search", None)
+        keyword = (update.message.text or "").strip()
+        if not keyword:
+            await update.message.reply_text("Введите слово или число для поиска.")
+            return
+        results = search_notifications(keyword, limit=50)
+        if not results:
+            await update.message.reply_text(f"По запросу «{_e(keyword)}» ничего не найдено.")
+            return
+        lines = [f"🔍 По запросу «{_e(keyword)}» найдено {len(results)} сообщений:\n"]
+        for r in results[:25]:
+            device_name = _e((r.get("device_name") or "Устройство")[:20])
+            sender = _e((r.get("sender") or "")[:30])
+            title = _e((r.get("title") or "")[:40])
+            text_preview = (r.get("text") or "")[:80].replace("\n", " ")
+            text_preview = _e(text_preview)
+            created = (r.get("created_at") or "")[:19]
+            lines.append(f"📱 {device_name} · {created}\n{sender} / {title}\n{text_preview}…")
+        if len(results) > 25:
+            lines.append(f"\n… и ещё {len(results) - 25}")
+        msg = "\n\n".join(lines)
+        if len(msg) > 4000:
+            msg = msg[:3970] + "\n\n… обрезано"
+        await update.message.reply_text(msg, parse_mode="HTML")
+        return
+
+    # Имя устройства
     did = context.user_data.pop("pending_device_name", None)
-    if did is None or not update.message or not update.message.text:
+    if did is None:
         return
     dev = get_device_by_id(did)
     if not dev:
@@ -453,14 +554,18 @@ async def handle_text_for_device_name(update: Update, context: ContextTypes.DEFA
 
 
 async def _job_check_offline_devices(context: ContextTypes.DEFAULT_TYPE) -> None:
-    from telegram_send import send_alert_to_channel_async
+    from telegram_send import send_alert_to_chat_async
+    alert_chat_id = get_alert_chat_id()
+    if not alert_chat_id:
+        return
     for dev in get_devices_overdue_for_offline_alert():
         name = dev.get("name") or "Устройство"
         try:
-            await send_alert_to_channel_async(
+            await send_alert_to_chat_async(
+                alert_chat_id,
                 f"⚠️ Устройство «{name}» не выходит на связь более {ONLINE_THRESHOLD_MINUTES} мин.\n\n"
                 "Возможные причины: приложение закрыто или упало, нет интернета, выключен телефон. "
-                "Проверьте устройство и работу EVATEAM."
+                "Проверьте устройство и работу EVATEAM.",
             )
             mark_device_offline_alert_sent(dev["device_token"])
         except Exception as e:
@@ -481,7 +586,7 @@ def build_application() -> Application:
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_for_device_name),
     )
-    # Проверка каждые 5 мин; уведомление только если устройство не отвечает дольше порога (30 мин)
+    # Проверка каждые 5 мин; алерт об офлайне только в бота (не в канал)
     if app.job_queue:
         app.job_queue.run_repeating(_job_check_offline_devices, interval=300, first=120)
     return app

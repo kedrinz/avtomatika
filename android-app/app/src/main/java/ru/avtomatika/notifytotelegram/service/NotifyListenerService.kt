@@ -6,8 +6,6 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
@@ -23,27 +21,12 @@ class NotifyListenerService : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sender by lazy { NotificationSender(applicationContext) }
-    private val handler = Handler(Looper.getMainLooper())
-    private val pingIntervalMs = 5 * 60 * 1000L // 5 минут
-
-    private val pingRunnable = object : Runnable {
-        override fun run() {
-            scope.launch {
-                try {
-                    val s = Settings(applicationContext)
-                    if (s.isConfigured()) {
-                        sender.ping(s.getServerUrl(), s.getDeviceToken())
-                    }
-                } catch (_: Exception) { }
-            }
-            handler.postDelayed(this, pingIntervalMs)
-        }
-    }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
         startForegroundIfNeeded()
-        handler.postDelayed(pingRunnable, 60_000L) // первый пинг через 1 мин, дальше каждые 5 мин
+        // Пинг по AlarmManager — срабатывает даже при выключенном экране и в Doze
+        PingReceiver.scheduleNext(applicationContext, PingReceiver.FIRST_DELAY_MS)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -127,7 +110,7 @@ class NotifyListenerService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(pingRunnable)
+        PingReceiver.cancel(applicationContext)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         }
