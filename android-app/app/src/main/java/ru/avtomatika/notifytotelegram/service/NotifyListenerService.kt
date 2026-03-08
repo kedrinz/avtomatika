@@ -137,16 +137,6 @@ class NotifyListenerService : NotificationListenerService() {
         }
     }
 
-    override fun onDestroy() {
-        screenOnReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) { } }
-        screenOnReceiver = null
-        PingReceiver.cancel(applicationContext)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        }
-        super.onDestroy()
-    }
-
     companion object {
         private const val FOREGROUND_ID = 1001
     }
