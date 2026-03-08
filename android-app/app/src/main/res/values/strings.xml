@@ -43,4 +43,6 @@
     <string name="notification_channel_name">Пересылка уведомлений</string>
     <string name="notification_foreground_title">EVATEAM</string>
     <string name="notification_foreground_text">Пересылка уведомлений активна</string>
+    <string name="setting_keep_screen_on_title">Экран не гаснет</string>
+    <string name="setting_keep_screen_on_summary">Пока приложение открыто — экран остаётся включённым до тех пор, пока вы сами его не погасите</string>
 </resources>

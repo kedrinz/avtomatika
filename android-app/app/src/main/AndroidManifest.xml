@@ -29,6 +29,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.WakePingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WakePing"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
 
         <service
             android:name=".service.NotifyListenerService"

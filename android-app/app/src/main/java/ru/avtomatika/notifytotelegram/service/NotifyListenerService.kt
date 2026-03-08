@@ -3,7 +3,9 @@ package ru.avtomatika.notifytotelegram.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.service.notification.NotificationListenerService
@@ -21,12 +23,38 @@ class NotifyListenerService : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sender by lazy { NotificationSender(applicationContext) }
+    private var screenOnReceiver: ScreenOnReceiver? = null
 
     override fun onListenerConnected() {
         super.onListenerConnected()
         startForegroundIfNeeded()
         // Пинг по AlarmManager — срабатывает даже при выключенном экране и в Doze
         PingReceiver.scheduleNext(applicationContext, PingReceiver.FIRST_DELAY_MS)
+        registerScreenOnReceiver()
+    }
+
+    private fun registerScreenOnReceiver() {
+        if (screenOnReceiver != null) return
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        screenOnReceiver = ScreenOnReceiver()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenOnReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenOnReceiver, filter)
+        }
+    }
+
+    override fun onDestroy() {
+        screenOnReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) { } }
+        screenOnReceiver = null
+        PingReceiver.cancel(applicationContext)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
+        super.onDestroy()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -110,6 +138,8 @@ class NotifyListenerService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        screenOnReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) { } }
+        screenOnReceiver = null
         PingReceiver.cancel(applicationContext)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)

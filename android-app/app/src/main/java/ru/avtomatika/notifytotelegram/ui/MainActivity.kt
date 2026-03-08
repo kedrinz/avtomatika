@@ -8,11 +8,13 @@ import android.os.Build
 import android.os.Bundle
 import androidx.core.content.ContextCompat
 import android.text.TextUtils
+import android.view.WindowManager
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -56,6 +58,32 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnScanQr).setOnClickListener { scanQr() }
         findViewById<MaterialButton>(R.id.btnAddPackage).setOnClickListener { addPackage() }
         findViewById<MaterialButton>(R.id.btnAddSender).setOnClickListener { addSender() }
+        val switchKeepScreenOn = findViewById<SwitchCompat>(R.id.switchKeepScreenOn)
+        switchKeepScreenOn.isChecked = settings.getKeepScreenOn()
+        switchKeepScreenOn.setOnCheckedChangeListener { _, isChecked ->
+            settings.setKeepScreenOn(isChecked)
+            applyKeepScreenOn(isChecked)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateListenerStatus()
+        applyKeepScreenOn(settings.getKeepScreenOn())
+        // Если настройки сохранены — пинг, чтобы устройство отображалось онлайн в боте
+        val url = settings.getServerUrl()
+        val token = settings.getDeviceToken()
+        if (url.isNotBlank() && token.isNotBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+            pingServer(url, token, showToast = false)
+        }
+    }
+
+    private fun applyKeepScreenOn(enable: Boolean) {
+        if (enable) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
@@ -118,16 +146,6 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    override fun onResume() {
-        super.onResume()
-        updateListenerStatus()
-        // Если настройки сохранены — пинг, чтобы устройство отображалось онлайн в боте
-        val url = settings.getServerUrl()
-        val token = settings.getDeviceToken()
-        if (url.isNotBlank() && token.isNotBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
-            pingServer(url, token, showToast = false)
-        }
-    }
 
     private fun updateListenerStatus() {
         val enabled = isNotificationServiceEnabled()

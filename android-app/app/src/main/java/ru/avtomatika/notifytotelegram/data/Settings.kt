@@ -63,11 +63,21 @@ class Settings(context: Context) {
         return url.startsWith("http://") || url.startsWith("https://")
     }
 
+    /** Включать экран при каждом пинге по будильнику (чтобы устройство не уходило в офлайн). По умолчанию true. */
+    fun getWakeScreenOnPing(): Boolean = prefs.getBoolean(KEY_WAKE_SCREEN_ON_PING, true)
+    fun setWakeScreenOnPing(value: Boolean) = prefs.edit().putBoolean(KEY_WAKE_SCREEN_ON_PING, value).apply()
+
+    /** Пока приложение открыто — экран не гаснет, пока пользователь сам не погасит. По умолчанию false. */
+    fun getKeepScreenOn(): Boolean = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
+    fun setKeepScreenOn(value: Boolean) = prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply()
+
     companion object {
         private const val PREFS_NAME = "notify_to_telegram"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_PACKAGES = "monitored_packages"
         private const val KEY_ALLOWED_SENDERS = "allowed_senders"
+        private const val KEY_WAKE_SCREEN_ON_PING = "wake_screen_on_ping"
+        private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
     }
 }
